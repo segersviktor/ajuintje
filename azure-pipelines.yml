@@ -1,0 +1,70 @@
+name: 1.$(date:yyyyMMdd)$(rev:.rr)
+
+trigger:
+ - develop
+ - feature/*
+ - bugfix/*
+
+pool:
+   vmImage: 'ubuntu-latest'
+
+variables:
+   buildConfiguration: 'Release'
+
+jobs:
+- job: Web
+  steps:
+  - task: NodeTool@0
+    inputs:
+      versionSpec: '12.x'
+    displayName: 'Install Node.js'
+
+  - script: |
+      npm install
+      npm run build --fix
+    workingDirectory:  $(Build.SourcesDirectory)/mykafka.client
+    displayName: 'npm install and build'
+
+  - task: UseDotNet@2
+    inputs:
+      packageType: 'sdk'
+      version: '5.0.100'
+      includePreviewVersions: true
+  - task: DotNetCoreCLI@2
+    displayName: Build
+    inputs:
+      command: build
+      projects: '**/*.csproj'
+      arguments: '--configuration $(buildConfiguration)'
+  - task: DotNetCoreCLI@2
+    inputs:
+     command: publish
+     publishWebProjects: True
+     arguments: '--configuration $(BuildConfiguration) --output $(Build.ArtifactStagingDirectory)/web.api'
+     zipAfterPublish: True
+  - task: PublishBuildArtifacts@1
+    inputs:
+     pathtoPublish: '$(Build.ArtifactStagingDirectory)' 
+     artifactName: 'mykafka'
+
+- job: Database
+  pool:
+     vmImage: 'ubuntu-latest'
+  variables:
+    buildConfiguration: 'Release'
+  steps:
+  - task: UseDotNet@2
+    inputs:
+      packageType: 'sdk'
+      version: '5.0.100'
+      includePreviewVersions: true
+  - script: |
+      cd $(Build.SourcesDirectory)/Mykafka.Data.Migration
+      dotnet build --configuration $(buildConfiguration)
+      dotnet publish --configuration $(buildConfiguration) --output $(build.ArtifactStagingDirectory)/database
+  - task: PublishBuildArtifacts@1
+    displayName: Publish Artifact
+    inputs:
+      PathtoPublish: '$(build.ArtifactStagingDirectory)'
+      artifactName: 'mykafka'
+    condition: succeededOrFailed()

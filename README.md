@@ -1,2 +1,0 @@
-# ajuintje
-Clean architecture template 
